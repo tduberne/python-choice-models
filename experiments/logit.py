@@ -1,6 +1,8 @@
 import scipy.optimize as opt
+import scipy.stats as stats
 import pandas as pd
 import numpy as np
+
 
 from typing import Mapping, TypeVar, Callable, List, Tuple
 
@@ -8,7 +10,8 @@ class Betas:
     def __init__(self, **start_values: Mapping[str, float]):
         l = list(start_values.items())
         self.indices = {l[index][0]: index for index in range(len(l))}
-        self.initial_betas = np.array([v for (n, v) in l])
+        self.initial_betas = np.array([val for (name, val) in l])
+        self.names = [name for (name, _) in  l]
         
     def get(self, name: str, betas: np.array) -> float:
         return betas[self.indices[name]]
@@ -19,13 +22,27 @@ class Betas:
 class EstimationResult:
     def __init__(self,
                  estimates: Mapping[str, float],
-                 covar_matrix: np.ndarray,
+                 covar_matrix: pd.DataFrame,
                  null_ll: float,
                  final_ll: float):
         self.estimates = estimates
         self.covar_matrix = covar_matrix
         self.null_ll = null_ll
         self.final_ll = final_ll
+        
+        self.estimate_frame = pd.DataFrame(index=estimates.keys(),
+                                           columns=['estimate', 'se', 't_stat_0', 'p_0', 't_stat_1', 'p_1'],
+                                          dtype=float)
+        for b in estimates.keys():
+            self.estimate_frame.loc[b, 'estimate'] = estimates[b]
+            self.estimate_frame.loc[b, 'se'] = np.sqrt(covar_matrix.loc[b,b])
+ 
+        self.estimate_frame['t_stat_0'] = self.estimate_frame.estimate / self.estimate_frame.se
+        self.estimate_frame['t_stat_1'] = (self.estimate_frame.estimate - 1) / self.estimate_frame.se
+        
+        self.estimate_frame['p_0'] = 2 * stats.norm.cdf(-np.abs(self.estimate_frame['t_stat_0']))
+        self.estimate_frame['p_1'] = 2 * stats.norm.cdf(-np.abs(self.estimate_frame['t_stat_1']))
+
 
 
 # Some aliases for type hints.
@@ -99,13 +116,15 @@ def estimate_logit(start_betas: Betas,
                           x0=start_betas.initial_betas)
     
     B = score_matrix(result.x, utilities, choice_vector, dataset)
+    
     sandwich_est = result.hess_inv.dot(B).dot(result.hess_inv)
+    covar_frame = pd.DataFrame(sandwich_est, index=start_betas.names, columns=start_betas.names)
+    
     null_ll = np.sum(log_likelihood(result.x * 0, utilities, choice_vector, dataset))
     final_ll = -result.fun
     
     return EstimationResult(
         start_betas.to_dict(result.x),
-        sandwich_est,
+        covar_frame,
         null_ll,
-        final_ll
-    )
+        final_ll)
