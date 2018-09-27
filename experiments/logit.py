@@ -17,6 +17,17 @@ class Betas:
     def to_dict(self, betas):
         return {name: betas[index] for (name, index) in self.indices.items()}
 
+class Utilities(dict):
+    """
+    Helper class allowing to add utility functions using a decorator.
+    """
+    def for_alternative(self, name):
+        def add(util):
+            # TODO: sanity check on number of arguments?
+            self[name] = util
+            return util
+        return add
+    
 class EstimationResult:
     def __init__(self,
                  estimates,
