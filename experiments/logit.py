@@ -1,21 +1,39 @@
 import scipy.optimize as opt
 import scipy.stats as stats
+from scipy.misc import logsumexp
 import pandas as pd
 import numpy as np
 import IPython.display as disp
+import logging
+
+log = logging.getLogger(__name__)
 
 class Betas:
     def __init__(self, **start_values):
-        l = list(start_values.items())
-        self.indices = {l[index][0]: index for index in range(len(l))}
-        self.initial_betas = np.array([val for (name, val) in l])
-        self.names = [name for (name, _) in  l]
+        # We allow specification with a value only: first convert all to Beta objects
+        self.betas = {k: (b if isinstance(b, Beta) else Beta(b)) for k, b in start_values.items()}
+        non_fixed = [(k, b) for k, b in self.betas.items() if not b.fixed]
+        self.indices = {non_fixed[index][0]: index for index in range(len(non_fixed))}
+
+        self.initial_array = np.array([beta.start_value for k, beta in non_fixed])
+        self.names_non_fixed = [k for (k, v) in non_fixed]
+        self.bounds = [b.bounds for k, b in non_fixed]
         
     def get(self, name, betas):
-        return betas[self.indices[name]]
+        # Return value from array if the parameter is not fixed, fixed value otherwise
+        return betas[self.indices[name]] if name in self.indices else self.betas[name].start_value
     
     def to_dict(self, betas):
         return {name: betas[index] for (name, index) in self.indices.items()}
+    
+class Beta:
+    def __init__(self, start_value,
+                fixed=False,
+                lower_bound=None,
+                upper_bound=None):
+        self.start_value = start_value
+        self.fixed = fixed
+        self.bounds = (lower_bound, upper_bound)
     
 class EstimationResult:
     def __init__(self,
@@ -31,6 +49,7 @@ class EstimationResult:
         self.estimate_frame = pd.DataFrame(index=estimates.keys(),
                                            columns=['estimate', 'se', 't_stat_0', 'p_0', 't_stat_1', 'p_1'],
                                           dtype=float)
+
         for b in estimates.keys():
             self.estimate_frame.loc[b, 'estimate'] = estimates[b]
             self.estimate_frame.loc[b, 'se'] = np.sqrt(covar_matrix.loc[b,b])
@@ -76,6 +95,7 @@ def log_likelihood(betas,
                        utilities,
                        choices,
                        df):
+    log.debug('evaluating betas {}'.format(betas))
     if len(choices) != df.shape[0]:
         raise Exception('number of choices {} is different from number of observations {}'.format(len(choices), df.shape[0]))
     
@@ -83,10 +103,10 @@ def log_likelihood(betas,
     chosen_utility = utility_values.lookup(utility_values.index, choices)
     
     # Numerical trick to avoid overflows in the sum of exponentials
-    max_util = utility_values.max().max()
-    logsums = max_util + np.log(np.exp(utility_values - max_util).sum(axis=1))
+    logsums = logsumexp(utility_values, axis=1)
     loglikelihoods = chosen_utility - logsums
-    
+
+    log.debug('LL={}'.format(np.nansum(loglikelihoods)))
     return loglikelihoods
 
 def approx_jacobian(f, x, args=(), epsilon=0.00001):
@@ -107,7 +127,7 @@ def approx_jacobian(f, x, args=(), epsilon=0.00001):
         
         for j in range(len(fp)):
             # could probably vectorized, but would require more testing
-            grad[j, i] = fp.iloc[j]
+            grad[j, i] = fp[j]
 
         ei[i] = 0.0
 
@@ -118,13 +138,17 @@ def score_matrix(betas,
           choices,
           df):
     jac = approx_jacobian(log_likelihood, betas, args=(utilities, choices, df))
-    
-    N = jac.shape[1]
+
+    N = jac.shape[0]
     K = len(betas)
     B = np.zeros((K,K), float)
     for i in range(N):
-        scores = jac[..., i]
-        out = scores.dot(scores.T)
+        scores = jac[i, ...]
+        # ill-specified dataset might have rows where no option is available,
+        # resulting in NaN score. We want to handle such cases gracefully.
+        if np.all(np.isnan(scores)):
+            continue
+        out = scores.T.dot(scores)
         B += out / N
     
     return B
@@ -133,15 +157,17 @@ def estimate_logit(start_betas,
                    utilities,
                    choice_vector,
                    dataset):
-    result = opt.minimize(lambda x: -np.sum(log_likelihood(x, utilities, choice_vector, dataset)),
-                          x0=start_betas.initial_betas)
+    result = opt.minimize(lambda x: -np.nansum(log_likelihood(x, utilities, choice_vector, dataset)),
+                          x0=start_betas.initial_array,
+                          bounds=start_betas.bounds,
+                          options={'disp': True})
     
     B = score_matrix(result.x, utilities, choice_vector, dataset)
     
-    sandwich_est = result.hess_inv.dot(B).dot(result.hess_inv)
-    covar_frame = pd.DataFrame(sandwich_est, index=start_betas.names, columns=start_betas.names)
+    sandwich_est = result.hess_inv.dot(B).dot(result.hess_inv.todense())
+    covar_frame = pd.DataFrame(sandwich_est, index=start_betas.names_non_fixed, columns=start_betas.names_non_fixed)
     
-    null_ll = np.sum(log_likelihood(result.x * 0, utilities, choice_vector, dataset))
+    null_ll = np.nansum(log_likelihood(result.x * 0, utilities, choice_vector, dataset))
     final_ll = -result.fun
     
     return EstimationResult(
