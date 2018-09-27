@@ -98,8 +98,9 @@ def log_likelihood(betas,
     log.debug('evaluating betas {}'.format(betas))
     if len(choices) != df.shape[0]:
         raise Exception('number of choices {} is different from number of observations {}'.format(len(choices), df.shape[0]))
-    
-    utility_values = pd.DataFrame({c: utilities[c](betas, df) for c in utilities.keys()})
+ 
+    # transform missing utilities to infinitely negative utilities (handled more consistently than NaN as missings)
+    utility_values = pd.DataFrame({c: utilities[c](betas, df) for c in utilities.keys()}).fillna(-np.inf)
     chosen_utility = utility_values.lookup(utility_values.index, choices)
     
     # Numerical trick to avoid overflows in the sum of exponentials
