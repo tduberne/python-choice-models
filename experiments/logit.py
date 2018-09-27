@@ -43,6 +43,12 @@ class EstimationResult:
         self.estimate_frame['p_0'] = 2 * stats.norm.cdf(-np.abs(self.estimate_frame['t_stat_0']))
         self.estimate_frame['p_1'] = 2 * stats.norm.cdf(-np.abs(self.estimate_frame['t_stat_1']))
 
+        self.goodness_fit = pd.DataFrame(index=['rho_sq', 'rho_bar_sq', "final_LL", 'null_LL'], columns=['val'])
+        self.goodness_fit.loc['null_LL', 'val'] = null_ll
+        self.goodness_fit.loc['final_LL', 'val'] = final_ll
+        self.goodness_fit.loc['rho_sq', 'val'] = 1 - final_ll / null_ll
+        n_params = covar_matrix.shape[0]
+        self.goodness_fit.loc['rho_bar_sq', 'val'] = 1 - (final_ll - n_params) / null_ll
 
 
 # Some aliases for type hints.
