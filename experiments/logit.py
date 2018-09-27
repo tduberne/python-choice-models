@@ -71,7 +71,7 @@ def log_likelihood(betas: np.ndarray,
         raise Exception('number of choices {} is different from number of observations {}'.format(len(choices), df.shape[0]))
     
     utility_values = pd.DataFrame({c: utilities[c](betas, df) for c in utilities.keys()})
-    chosen_utility = utility_values.lookup(range(len(choices)), choices)
+    chosen_utility = utility_values.lookup(utility_values.index, choices)
     
     # Numerical trick to avoid overflows in the sum of exponentials
     max_util = utility_values.max().max()
@@ -98,7 +98,7 @@ def approx_jacobian(f, x, args=(), epsilon=0.00001):
         
         for j in range(len(fp)):
             # could probably vectorized, but would require more testing
-            grad[j, i] = fp[j]
+            grad[j, i] = fp.iloc[j]
 
         ei[i] = 0.0
 
