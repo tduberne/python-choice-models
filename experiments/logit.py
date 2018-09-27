@@ -62,6 +62,23 @@ C = TypeVar('C')
 Utilities = Mapping[C, Callable[[Betas, pd.DataFrame], float]]
 Choices = pd.Series
 
+def avail(x):
+    """
+    Helper function to take into account availability.
+    
+    Parameters
+    ----------
+    
+    x : vector of a type that can be interpreted as booleans (typically integer or boolean)
+    
+    Returns
+    -------
+    
+    Vector of the same length as x, with NaNs where x is False (0 in integer case), 0 elsewhere.
+    This vector is thought to be added to the utility values, which has the effect
+    of turning the utility to NaN if the alternative is not available.
+    """
+    return np.array([np.nan if not xi else 0 for xi in x])
 
 def log_likelihood(betas: np.ndarray,
                        utilities: Utilities,
