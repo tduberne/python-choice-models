@@ -4,27 +4,25 @@ import pandas as pd
 import numpy as np
 import IPython.display as disp
 
-from typing import Mapping, TypeVar, Callable, List, Tuple
-
 class Betas:
-    def __init__(self, **start_values: Mapping[str, float]):
+    def __init__(self, **start_values):
         l = list(start_values.items())
         self.indices = {l[index][0]: index for index in range(len(l))}
         self.initial_betas = np.array([val for (name, val) in l])
         self.names = [name for (name, _) in  l]
         
-    def get(self, name: str, betas: np.array) -> float:
+    def get(self, name, betas):
         return betas[self.indices[name]]
     
-    def to_dict(self, betas: np.array) -> Mapping[str, float]:
+    def to_dict(self, betas):
         return {name: betas[index] for (name, index) in self.indices.items()}
 
 class EstimationResult:
     def __init__(self,
-                 estimates: Mapping[str, float],
-                 covar_matrix: pd.DataFrame,
-                 null_ll: float,
-                 final_ll: float):
+                 estimates,
+                 covar_matrix,
+                 null_ll,
+                 final_ll):
         self.estimates = estimates
         self.covar_matrix = covar_matrix
         self.null_ll = null_ll
@@ -56,12 +54,6 @@ class EstimationResult:
         disp.display_markdown('### Goodness of fit:', raw=True)
         disp.display(self.goodness_fit)
 
-
-# Some aliases for type hints.
-C = TypeVar('C')
-Utilities = Mapping[C, Callable[[Betas, pd.DataFrame], float]]
-Choices = pd.Series
-
 def avail(x):
     """
     Helper function to take into account availability.
@@ -80,10 +72,10 @@ def avail(x):
     """
     return np.array([np.nan if not xi else 0 for xi in x])
 
-def log_likelihood(betas: np.ndarray,
-                       utilities: Utilities,
-                       choices: Choices,
-                       df: pd.DataFrame) -> float:
+def log_likelihood(betas,
+                       utilities,
+                       choices,
+                       df):
     if len(choices) != df.shape[0]:
         raise Exception('number of choices {} is different from number of observations {}'.format(len(choices), df.shape[0]))
     
@@ -121,10 +113,10 @@ def approx_jacobian(f, x, args=(), epsilon=0.00001):
 
     return grad
 
-def score_matrix(betas: np.ndarray,
-          utilities: Utilities,
-          choices: Choices,
-          df: pd.DataFrame) -> float:
+def score_matrix(betas,
+          utilities,
+          choices,
+          df):
     jac = approx_jacobian(log_likelihood, betas, args=(utilities, choices, df))
     
     N = jac.shape[1]
@@ -137,10 +129,10 @@ def score_matrix(betas: np.ndarray,
     
     return B
 
-def estimate_logit(start_betas: Betas,
-                   utilities: Utilities,
-                   choice_vector: Choices,
-                   dataset: pd.DataFrame) -> EstimationResult:
+def estimate_logit(start_betas,
+                   utilities,
+                   choice_vector,
+                   dataset):
     result = opt.minimize(lambda x: -np.sum(log_likelihood(x, utilities, choice_vector, dataset)),
                           x0=start_betas.initial_betas)
     
