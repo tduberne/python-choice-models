@@ -2,7 +2,7 @@ import scipy.optimize as opt
 import scipy.stats as stats
 import pandas as pd
 import numpy as np
-
+import IPython.display as disp
 
 from typing import Mapping, TypeVar, Callable, List, Tuple
 
@@ -49,6 +49,12 @@ class EstimationResult:
         self.goodness_fit.loc['rho_sq', 'val'] = 1 - final_ll / null_ll
         n_params = covar_matrix.shape[0]
         self.goodness_fit.loc['rho_bar_sq', 'val'] = 1 - (final_ll - n_params) / null_ll
+    
+    def _ipython_display_(self):
+        disp.display_markdown('### Estimates:', raw=True)
+        disp.display(self.estimate_frame)
+        disp.display_markdown('### Goodness of fit:', raw=True)
+        disp.display(self.goodness_fit)
 
 
 # Some aliases for type hints.
