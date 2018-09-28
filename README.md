@@ -36,3 +36,9 @@ What is not planned is:
 - to implement automatic derivation of analytical gradient
 - to be complete in terms of the kind of models that are provided out-of-the-box
   (additional models are however easy to implement by specifying the likelihood function)
+
+How to Use
+----------
+
+For the moment, the easiest way to use is to copy the `*.py` files from this repository in
+the same directory as your notebooks. This also fits well in teaching.
