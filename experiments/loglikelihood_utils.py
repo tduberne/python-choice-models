@@ -60,12 +60,14 @@ class EstimationResult:
         self.estimate_frame['p_0'] = 2 * stats.norm.cdf(-np.abs(self.estimate_frame['t_stat_0']))
         self.estimate_frame['p_1'] = 2 * stats.norm.cdf(-np.abs(self.estimate_frame['t_stat_1']))
 
-        self.goodness_fit = pd.DataFrame(index=['rho_sq', 'rho_bar_sq', "final_LL", 'null_LL'], columns=['val'])
+        self.goodness_fit = pd.DataFrame(index=['rho_sq', 'rho_bar_sq', "final_LL", 'null_LL', 'LL_ratio_test'], columns=['val'])
         self.goodness_fit.loc['null_LL', 'val'] = null_ll
         self.goodness_fit.loc['final_LL', 'val'] = final_ll
         self.goodness_fit.loc['rho_sq', 'val'] = 1 - final_ll / null_ll
-        n_params = covar_matrix.shape[0]
-        self.goodness_fit.loc['rho_bar_sq', 'val'] = 1 - (final_ll - n_params) / null_ll
+        self.n_params = covar_matrix.shape[0]
+        self.goodness_fit.loc['rho_bar_sq', 'val'] = 1 - (final_ll - self.n_params) / null_ll
+
+        self.goodness_fit.loc['LL_ratio_test', 'val'] = -2 * (null_ll - final_ll)
     
     def _ipython_display_(self):
         disp.display_markdown('### Estimates:', raw=True)
@@ -115,3 +117,29 @@ def approx_jacobian(f, x, args=(), epsilon=0.00001):
 
     return grad
 
+def likelihood_ratio_p_value(results, results_extended):
+    """
+    Compares the estimation results of two models, where the first model is a restricted version of
+    the second one, that is, can be obtained from it by fixing the value of some parameters (typically to 0).
+
+    Parameters
+    ----------
+
+    results: an EstimationResult object for the restricted model
+
+    results_extended: an EstimationResult object for the extended model
+
+    Returns
+    -------
+
+    A value between 0 and 1, corresponding to the probability tor reject the hypothesis that the
+    extended model is "more correct" whereas it is not.
+    """
+    if results.n_params > results_extended.n_params:
+        # allow the user to be confused...
+        results, results_extended = results_extended, results
+
+    test_stat = -2 * (results.final_ll - results_extended.final_ll)
+    deg_freedom = results_extended.n_params - results.n_params
+
+    return 1 - stats.chi2.cdf(test_stat, deg_freedom)
