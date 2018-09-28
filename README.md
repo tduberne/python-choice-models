@@ -22,4 +22,17 @@ focusing on the usecase of discrete choice models (but in theory applicable to a
 estimation).
 
 I also try to keep the code as simple as possible, as the idea is that the code should also be usable
-as a teaching device (and thus should be understandable by non-experts).
+as a teaching device (and thus should be understandable without too much Python or software engineering
+background).
+
+The main features it brings are:
+
+- possibility to access parameters by name from the optimized function (likelihood)
+- methods to compute estimated standard errors of estimators, covariance of estimators, etc.
+- possibility to define names, starting values and contraints on parameters in one statement
+
+What is not planned is:
+
+- to implement automatic derivation of analytical gradient
+- to be complete in terms of the kind of models that are provided out-of-the-box
+  (additional models are however easy to implement by specifying the likelihood function)
