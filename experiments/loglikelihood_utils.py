@@ -37,10 +37,12 @@ class Beta:
     
 class EstimationResult:
     def __init__(self,
+                 optimization_result,
                  estimates,
                  covar_matrix,
                  null_ll,
                  final_ll):
+        self.optimization_result = optimization_result
         self.estimates = estimates
         self.covar_matrix = covar_matrix
         self.null_ll = null_ll

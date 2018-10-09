@@ -45,6 +45,7 @@ def estimate(start_betas,
     final_ll = -result.fun
     
     return ll.EstimationResult(
+        result,
         start_betas.to_dict(result.x),
         covar_frame,
         null_ll,
@@ -61,12 +62,8 @@ def score_matrix(betas,
     K = len(betas)
     B = np.zeros((K,K), float)
     for i in range(N):
-        scores = jac[i, ...]
-        # ill-specified dataset might have rows where no option is available,
-        # resulting in NaN score. We want to handle such cases gracefully.
-        if np.all(np.isnan(scores)):
-            continue
-        out = scores.T.dot(scores)
+        scores = jac[i, ...].reshape((K,1))
+        out = scores.dot(scores.T)
         B += out / N
     
     return B
