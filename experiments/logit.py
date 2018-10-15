@@ -69,6 +69,7 @@ def score_matrix(betas,
     
     return B
 
+
 def choice_probabilities(betas,
                        utilities,
                        df):
@@ -83,3 +84,12 @@ def choice_probabilities(betas,
 
     return np.exp(loglikelihoods)
 
+
+def simulate(betas, utilities, df):
+    cum_probs = choice_probabilities(betas, utilities, df).cumsum(axis=1)
+    threshold = np.random.rand(df.shape[0])
+
+    # To find the first choice with cumulative probability greater than threshold:
+    # Set all values smaller than threshold to NA, and find the column with the min value.
+    cum_probs[ cum_probs.lt(threshold, axis=0) ] = np.nan
+    return cum_probs.idxmin(axis=1)
