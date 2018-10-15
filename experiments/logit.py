@@ -45,6 +45,7 @@ def estimate(start_betas,
     final_ll = -result.fun
     
     return ll.EstimationResult(
+        start_betas,
         result,
         start_betas.to_dict(result.x),
         covar_frame,

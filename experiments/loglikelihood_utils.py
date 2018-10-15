@@ -21,7 +21,12 @@ class Betas:
         
     def get(self, name, betas):
         # Return value from array if the parameter is not fixed, fixed value otherwise
-        return betas[self.indices[name]] if name in self.indices else self.betas[name].start_value
+        value = betas[self.indices[name]] if name in self.indices else self.betas[name].start_value
+        scale = self.get_parameter_scale(name)
+        return value * scale
+    
+    def get_parameter_scale(self, name):
+        return self.betas[name].scale
     
     def to_dict(self, betas):
         return {name: betas[index] for (name, index) in self.indices.items()}
@@ -29,32 +34,37 @@ class Betas:
 class Beta:
     def __init__(self, start_value,
                 fixed=False,
+                scale=1,
                 lower_bound=None,
                 upper_bound=None):
         self.start_value = start_value
         self.fixed = fixed
+        self.scale = 1
         self.bounds = (lower_bound, upper_bound)
-    
+
 class EstimationResult:
     def __init__(self,
+                 start_betas,
                  optimization_result,
                  estimates,
-                 covar_matrix,
+                 rob_covar_matrix,
                  null_ll,
                  final_ll):
         self.optimization_result = optimization_result
         self.estimates = estimates
-        self.covar_matrix = covar_matrix
+        self.rob_covar_matrix = rob_covar_matrix
+        self.covar_matrix = pd.DataFrame(optimization_result.hess_inv.todense(), index=start_betas.names_non_fixed, columns=start_betas.names_non_fixed)
         self.null_ll = null_ll
         self.final_ll = final_ll
         
         self.estimate_frame = pd.DataFrame(index=estimates.keys(),
-                                           columns=['estimate', 'se', 't_stat_0', 'p_0', 't_stat_1', 'p_1'],
+                                           columns=['estimate', 'se', 'rob_se', 't_stat_0', 'p_0', 't_stat_1', 'p_1'],
                                           dtype=float)
 
         for b in estimates.keys():
-            self.estimate_frame.loc[b, 'estimate'] = estimates[b]
-            self.estimate_frame.loc[b, 'se'] = np.sqrt(covar_matrix.loc[b,b])
+            self.estimate_frame.loc[b, 'estimate'] = estimates[b] * start_betas.get_parameter_scale(b)
+            self.estimate_frame.loc[b, 'se'] = np.sqrt(self.covar_matrix.loc[b,b]) * start_betas.get_parameter_scale(b)
+            self.estimate_frame.loc[b, 'rob_se'] = np.sqrt(rob_covar_matrix.loc[b,b]) * start_betas.get_parameter_scale(b)
  
         self.estimate_frame['t_stat_0'] = self.estimate_frame.estimate / self.estimate_frame.se
         self.estimate_frame['t_stat_1'] = (self.estimate_frame.estimate - 1) / self.estimate_frame.se
@@ -66,7 +76,7 @@ class EstimationResult:
         self.goodness_fit.loc['null_LL', 'val'] = null_ll
         self.goodness_fit.loc['final_LL', 'val'] = final_ll
         self.goodness_fit.loc['rho_sq', 'val'] = 1 - final_ll / null_ll
-        self.n_params = covar_matrix.shape[0]
+        self.n_params = rob_covar_matrix.shape[0]
         self.goodness_fit.loc['rho_bar_sq', 'val'] = 1 - (final_ll - self.n_params) / null_ll
 
         self.goodness_fit.loc['LL_ratio_test', 'val'] = -2 * (null_ll - final_ll)
