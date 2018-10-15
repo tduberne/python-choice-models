@@ -68,3 +68,18 @@ def score_matrix(betas,
         B += out / N
     
     return B
+
+def choice_probabilities(betas,
+                       utilities,
+                       df):
+    log.debug('evaluating betas {}'.format(betas))
+ 
+    # transform missing utilities to infinitely negative utilities (handled more consistently than NaN as missings)
+    utility_values = pd.DataFrame({c: utilities[c](betas, df) for c in utilities.keys()}).fillna(-np.inf)
+    
+    # Numerical trick to avoid overflows in the sum of exponentials
+    logsums = logsumexp(utility_values, axis=1)
+    loglikelihoods = utility_values.add(-logsums, axis='index')
+
+    return np.exp(loglikelihoods)
+
